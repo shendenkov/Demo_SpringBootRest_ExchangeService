@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 @Service
 public class CommissionServiceImpl implements CommissionService {
 
-    private CommissionRepository commissionRepository;
+    private final CommissionRepository commissionRepository;
 
     @Autowired
     public CommissionServiceImpl(CommissionRepository commissionRepository) {
@@ -39,19 +39,22 @@ public class CommissionServiceImpl implements CommissionService {
     @Override
     public BigDecimal getCommissionCoefficient(Currency from, Currency to) {
         Optional<Commission> optionalCommission = getCommission(from, to);
-        BigDecimal commissionCoefficient;
+        BigDecimal commissionPt;
         if (optionalCommission.isPresent()) {
-            commissionCoefficient = optionalCommission.get().getCommissionPt();
+            commissionPt = optionalCommission.get().getCommissionPt();
         } else {
-            commissionCoefficient = BigDecimal.ZERO;
+            commissionPt = BigDecimal.ZERO;
         }
-        return BigDecimal.ONE.subtract(commissionCoefficient.divide(BigDecimal.valueOf(100), 5, BigDecimal.ROUND_DOWN));
+        return BigDecimal.ONE.subtract(commissionPt.divide(BigDecimal.valueOf(100), 5, BigDecimal.ROUND_DOWN));
     }
 
     @Override
-    public void setCommission(Commission commission) throws Exception {
+    public void setCommission(Commission commission) {
         if (commission.getCommissionPt().compareTo(BigDecimal.ZERO) < 0) {
             throw new CommissionException("Commission percent shouldn't be negative");
+        }
+        if (commission.getCommissionPt().compareTo(BigDecimal.valueOf(100)) >= 0) {
+            throw new CommissionException("Commission percent shouldn't be greater then 100 or equal");
         }
         if (commission.getFrom().equals(commission.getTo())) {
             throw new CommissionException("Currencies From and To should be different");
@@ -61,9 +64,9 @@ public class CommissionServiceImpl implements CommissionService {
         if (optional.isPresent()) {
             CommissionEntity dbEntity = optional.get();
             dbEntity.setCommissionPt(commission.getCommissionPt());
-            commissionRepository.save(dbEntity);
+            commissionRepository.saveAndFlush(dbEntity);
         } else {
-            commissionRepository.save(new CommissionEntity(commission));
+            commissionRepository.saveAndFlush(new CommissionEntity(commission));
         }
     }
 }

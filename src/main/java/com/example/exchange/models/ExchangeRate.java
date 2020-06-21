@@ -2,6 +2,7 @@ package com.example.exchange.models;
 
 import com.example.exchange.models.entities.ExchangeRateEntity;
 import com.example.exchange.models.enums.Currency;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,6 +10,7 @@ import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 public class ExchangeRate {
 
     private Currency from;

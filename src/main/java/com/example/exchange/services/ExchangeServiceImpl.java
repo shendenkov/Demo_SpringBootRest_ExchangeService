@@ -2,7 +2,6 @@ package com.example.exchange.services;
 
 import com.example.exchange.models.entities.ExchangeRateEntity;
 import com.example.exchange.models.enums.OperationType;
-import com.example.exchange.exceptions.CommissionException;
 import com.example.exchange.exceptions.ExchangeException;
 import com.example.exchange.models.ExchangeRate;
 import com.example.exchange.models.ExchangeRequest;
@@ -19,8 +18,8 @@ import java.util.stream.Collectors;
 @Service
 public class ExchangeServiceImpl implements ExchangeService {
 
-    private ExchangeRateRepository exchangeRateRepository;
-    private CommissionService commissionService;
+    private final ExchangeRateRepository exchangeRateRepository;
+    private final CommissionService commissionService;
 
     @Autowired
     public ExchangeServiceImpl(ExchangeRateRepository exchangeRateRepository, CommissionService commissionService) {
@@ -31,24 +30,24 @@ public class ExchangeServiceImpl implements ExchangeService {
     @Override
     public ExchangeRequest calculateExchange(ExchangeRequest exchangeRequest) {
         if (exchangeRequest.getCurrencyFrom().equals(exchangeRequest.getCurrencyTo())) {
-            throw new CommissionException("Currencies From and To should be different");
+            throw new ExchangeException("Currencies From and To should be different");
         }
 
         Optional<ExchangeRateEntity> optionalRate = exchangeRateRepository.findByFromAndTo(exchangeRequest.getCurrencyFrom().toString(),
                 exchangeRequest.getCurrencyTo().toString());
         if (!optionalRate.isPresent()) {
-            throw new ExchangeException("This service doesn't support exchange between" + exchangeRequest.getCurrencyFrom() + " and " + exchangeRequest.getCurrencyTo());
+            throw new ExchangeException("This service doesn't support exchange between " + exchangeRequest.getCurrencyFrom() + " and " + exchangeRequest.getCurrencyTo());
         }
 
         BigDecimal commissionCoefficient = commissionService.getCommissionCoefficient(exchangeRequest.getCurrencyFrom(),
                 exchangeRequest.getCurrencyTo());
 
         if (exchangeRequest.getOperationType() == OperationType.GIVE) {
-            if (exchangeRequest.getAmountFrom().compareTo(BigDecimal.ZERO) < 0 || exchangeRequest.getAmountFrom().compareTo(BigDecimal.ZERO) == 0) {
+            if (exchangeRequest.getAmountFrom().compareTo(BigDecimal.ZERO) < 0
+                    || exchangeRequest.getAmountFrom().compareTo(BigDecimal.ZERO) == 0) {
                 throw new ExchangeException("For operation " + exchangeRequest.getOperationType()
-                        + " amountFrom should be great than zero");
+                        + " amountFrom should be greater than zero");
             }
-            // exchangeRequest.getAmountFrom() * optionalRate.get().getRate() * (1 - commissionPt/100)
             exchangeRequest.setAmountTo(
                     exchangeRequest.getAmountFrom()
                     .multiply(optionalRate.get().getRate())
@@ -57,11 +56,11 @@ public class ExchangeServiceImpl implements ExchangeService {
             );
 
         } else if (exchangeRequest.getOperationType() == OperationType.GET) {
-            if (exchangeRequest.getAmountTo().compareTo(BigDecimal.ZERO) < 0 || exchangeRequest.getAmountTo().compareTo(BigDecimal.ZERO) == 0) {
+            if (exchangeRequest.getAmountTo().compareTo(BigDecimal.ZERO) < 0
+                    || exchangeRequest.getAmountTo().compareTo(BigDecimal.ZERO) == 0) {
                 throw new ExchangeException("For operation " + exchangeRequest.getOperationType()
-                        + " amountTo should be great than zero");
+                        + " amountTo should be greater than zero");
             }
-            // exchangeRequest.getAmountTo() / ( optionalRate.get().getRate() * (1 - commissionPt/100) )
             BigDecimal divisor = optionalRate.get().getRate()
                     .multiply(commissionCoefficient)
                     .setScale(2, BigDecimal.ROUND_DOWN);
@@ -86,11 +85,12 @@ public class ExchangeServiceImpl implements ExchangeService {
     @Override
     @Transactional
     public void setExchangeRate(ExchangeRate exchangeRate) {
-        if (exchangeRate.getRate().compareTo(BigDecimal.ZERO) < 0 || exchangeRate.getRate().compareTo(BigDecimal.ZERO) == 0) {
-            throw new CommissionException("Rate shouldn't be more than zero");
+        if (exchangeRate.getRate().compareTo(BigDecimal.ZERO) < 0
+                || exchangeRate.getRate().compareTo(BigDecimal.ZERO) == 0) {
+            throw new ExchangeException("Rate shouldn't be more than zero");
         }
         if (exchangeRate.getFrom().equals(exchangeRate.getTo())) {
-            throw new CommissionException("Currencies From and To should be different");
+            throw new ExchangeException("Currencies From and To should be different");
         }
         Optional<ExchangeRateEntity> optionalGive = exchangeRateRepository.findByFromAndTo(exchangeRate.getFrom().toString(),
                 exchangeRate.getTo().toString());
@@ -107,13 +107,13 @@ public class ExchangeServiceImpl implements ExchangeService {
         if (optionalGet.isPresent()) {
             ExchangeRateEntity dbEntity = optionalGet.get();
             dbEntity.setRate(reverseRate);
-            exchangeRateRepository.save(dbEntity);
+            exchangeRateRepository.saveAndFlush(dbEntity);
         } else {
             ExchangeRate reverseExchangeRate = new ExchangeRate();
             reverseExchangeRate.setFrom(exchangeRate.getTo());
             reverseExchangeRate.setRate(reverseRate);
             reverseExchangeRate.setTo(exchangeRate.getFrom());
-            exchangeRateRepository.save(new ExchangeRateEntity(reverseExchangeRate));
+            exchangeRateRepository.saveAndFlush(new ExchangeRateEntity(reverseExchangeRate));
         }
     }
 }

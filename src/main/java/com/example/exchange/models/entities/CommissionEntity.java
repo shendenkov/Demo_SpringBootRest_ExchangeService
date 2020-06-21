@@ -1,6 +1,7 @@
 package com.example.exchange.models.entities;
 
 import com.example.exchange.models.Commission;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "commissions")
 public class CommissionEntity {
