@@ -30,249 +30,382 @@ public class ExchangeServiceTests {
 
     @Test
     public void calculateGiveExchangeRequest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1), BigDecimal.ZERO, Currency.UAH,
-                Currency.USD, OperationType.GIVE);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
-
-        ExchangeRequest result = service.calculateExchange(request);
-
-        Assertions.assertThat(result).isNotNull();
-        Assertions.assertThat(result).isEqualToIgnoringGivenFields(request, "amountTo");
-
-        BigDecimal expected = request.getAmountFrom()
-                .multiply(data.getRate())
-                .multiply(coefficient)
-                .setScale(2, BigDecimal.ROUND_DOWN);
-        Assertions.assertThat(result.getAmountTo()).isEqualByComparingTo(expected);
-
-        Mockito.verify(repositoryMock).findByFromAndTo(Mockito.any(), Mockito.any());
-        Mockito.verify(commissionServiceMock).getCommissionCoefficient(Mockito.any(), Mockito.any());
+        calculateExchangeTest(OperationType.GIVE);
     }
 
     @Test
     public void calculateGetExchangeTest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.ZERO, BigDecimal.valueOf(random.nextInt(100) + 1), Currency.UAH,
-                Currency.USD, OperationType.GET);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
+        calculateExchangeTest(OperationType.GET);
+    }
+
+    public void calculateExchangeTest(OperationType operationType) {
+        ExchangeRequest request;
+        switch (operationType) {
+            case GIVE: {
+                request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN),
+                        BigDecimal.ZERO, Currency.UAH, Currency.USD, OperationType.GIVE);
+                break;
+            }
+            case GET: {
+                request = new ExchangeRequest(BigDecimal.ZERO,
+                        BigDecimal.valueOf(random.nextInt(100) + 1) .setScale(5, BigDecimal.ROUND_DOWN), Currency.UAH, Currency.USD,
+                        OperationType.GET);
+                break;
+            }
+            default: {
+                throw new RuntimeException("Unsupported operation type: " + operationType);
+            }
+        }
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        BigDecimal coefficient = BigDecimal.valueOf(0.1d).setScale(2, BigDecimal.ROUND_DOWN);
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD))
+                .thenReturn(coefficient);
 
         ExchangeRequest result = service.calculateExchange(request);
 
-        Assertions.assertThat(result).isNotNull();
-        Assertions.assertThat(result).isEqualToIgnoringGivenFields(request, "amountFrom");
+        BigDecimal expected;
+        switch (operationType) {
+            case GIVE: {
+                expected = request.getAmountFrom()
+                        .multiply(data.getRate())
+                        .multiply(coefficient)
+                        .setScale(2, BigDecimal.ROUND_DOWN);
+                break;
+            }
+            case GET: {
+                BigDecimal divisor = data.getRate()
+                        .multiply(coefficient)
+                        .setScale(2, BigDecimal.ROUND_DOWN);
+                expected = request.getAmountTo()
+                        .divide(divisor, BigDecimal.ROUND_DOWN);
+                break;
+            }
+            default: {
+                throw new RuntimeException("Unsupported operation type: " + operationType);
+            }
+        }
+        Assertions.assertThat(result)
+                .isNotNull();
+        switch (operationType) {
+            case GIVE: {
+                Assertions.assertThat(result)
+                        .isEqualToIgnoringGivenFields(request, "amountTo");
+                Assertions.assertThat(result.getAmountTo())
+                        .isEqualByComparingTo(expected);
+                break;
+            }
+            case GET: {
+                Assertions.assertThat(result)
+                        .isEqualToIgnoringGivenFields(request, "amountFrom");
+                Assertions.assertThat(result.getAmountFrom())
+                        .isEqualByComparingTo(expected);
+                break;
+            }
+            default: {
+                throw new RuntimeException("Unsupported operation type: " + operationType);
+            }
+        }
 
-        BigDecimal divisor = data.getRate()
-                .multiply(coefficient)
-                .setScale(2, BigDecimal.ROUND_DOWN);
-        BigDecimal expected = request.getAmountTo()
-                .divide(divisor, BigDecimal.ROUND_DOWN);
-        Assertions.assertThat(result.getAmountFrom()).isEqualByComparingTo(expected);
-
-        Mockito.verify(repositoryMock).findByFromAndTo(Mockito.any(), Mockito.any());
-        Mockito.verify(commissionServiceMock).getCommissionCoefficient(Mockito.any(), Mockito.any());
+        Mockito.verify(repositoryMock)
+                .findByFromAndTo(Mockito.any(), Mockito.any());
+        Mockito.verify(commissionServiceMock)
+                .getCommissionCoefficient(Mockito.any(), Mockito.any());
     }
 
     @Test
     public void calculateExchangeSameCurrenciesTest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1), BigDecimal.ZERO, Currency.UAH,
-                Currency.UAH, OperationType.GIVE);
+        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN),
+                BigDecimal.ZERO, Currency.UAH, Currency.UAH, OperationType.GIVE);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void calculateExchangeNotSupportedTest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1), BigDecimal.ZERO, Currency.UAH,
-                Currency.USD, OperationType.GIVE);
-        Mockito.when(repositoryMock.findByFromAndTo(Mockito.any(), Mockito.any())).thenReturn(Optional.empty());
+        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN),
+                BigDecimal.ZERO, Currency.UAH, Currency.USD, OperationType.GIVE);
+        Mockito.when(repositoryMock.findByFromAndTo(Mockito.any(), Mockito.any()))
+                .thenReturn(Optional.empty());
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void calculateExchangeGiveZeroTest() {
         ExchangeRequest request = new ExchangeRequest(BigDecimal.ZERO, BigDecimal.ZERO, Currency.UAH, Currency.USD, OperationType.GIVE);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        BigDecimal coefficient = BigDecimal.valueOf(0.1d).setScale(2, BigDecimal.ROUND_DOWN);
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD))
+                .thenReturn(coefficient);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void calculateExchangeGiveNegativeTest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) - 100), BigDecimal.ZERO, Currency.UAH,
-                Currency.USD, OperationType.GIVE);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
+        ExchangeRequest request = new ExchangeRequest(BigDecimal.valueOf(random.nextInt(100) - 100).setScale(5, BigDecimal.ROUND_DOWN),
+                BigDecimal.ZERO, Currency.UAH, Currency.USD, OperationType.GIVE);
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        BigDecimal coefficient = BigDecimal.valueOf(0.1d).setScale(2, BigDecimal.ROUND_DOWN);
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD))
+                .thenReturn(coefficient);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void calculateExchangeGetZeroTest() {
         ExchangeRequest request = new ExchangeRequest(BigDecimal.ZERO, BigDecimal.ZERO, Currency.UAH, Currency.USD, OperationType.GET);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        BigDecimal coefficient = BigDecimal.valueOf(0.1d).setScale(2, BigDecimal.ROUND_DOWN);
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD))
+                .thenReturn(coefficient);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void calculateExchangeGetNegativeTest() {
-        ExchangeRequest request = new ExchangeRequest(BigDecimal.ZERO, BigDecimal.valueOf(random.nextInt(100) - 100), Currency.UAH,
-                Currency.USD, OperationType.GIVE);
-        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.USD.toString());
-        BigDecimal coefficient = BigDecimal.valueOf(0.1d);
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD)).thenReturn(coefficient);
+        ExchangeRequest request = new ExchangeRequest(BigDecimal.ZERO, BigDecimal.valueOf(random.nextInt(100) - 100).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.UAH, Currency.USD, OperationType.GIVE);
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        BigDecimal coefficient = BigDecimal.valueOf(0.1d).setScale(2, BigDecimal.ROUND_DOWN);
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(commissionServiceMock.getCommissionCoefficient(Currency.UAH, Currency.USD))
+                .thenReturn(coefficient);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.calculateExchange(request));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.calculateExchange(request));
     }
 
     @Test
     public void getAllExchangeRatesTest() {
         List<ExchangeRateEntity> data = new ArrayList<>();
-        data.add(new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1), Currency.USD.toString()));
-        data.add(new ExchangeRateEntity(2L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1), Currency.EUR.toString()));
-        data.add(new ExchangeRateEntity(3L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1), Currency.RUB.toString()));
-        Mockito.when(repositoryMock.findAll()).thenReturn(data);
+        data.add(new ExchangeRateEntity(1L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.USD.toString()));
+        data.add(new ExchangeRateEntity(2L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.EUR.toString()));
+        data.add(new ExchangeRateEntity(3L, Currency.UAH.toString(), BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.RUB.toString()));
+        Mockito.when(repositoryMock.findAll())
+                .thenReturn(data);
 
         List<ExchangeRate> result = service.getAllExchangeRates();
 
-        Assertions.assertThat(result).isNotNull();
-        Assertions.assertThat(result).doesNotContain(new ExchangeRate[]{null});
-        Assertions.assertThat(result).hasSize(data.size());
-        Assertions.assertThat(result).containsAll(data.stream().map(ExchangeRate::new).collect(Collectors.toList()));
+        Assertions.assertThat(result)
+                .isNotNull()
+                .hasSize(data.size())
+                .doesNotContain(new ExchangeRate[]{null})
+                .containsAll(data.stream()
+                        .map(ExchangeRate::new)
+                        .collect(Collectors.toList()));
 
-        Mockito.verify(repositoryMock).findAll();
+        Mockito.verify(repositoryMock)
+                .findAll();
     }
 
     @Test
-    public void getAllCommissionsEmptyTest() {
+    public void getAllExchangeRatesEmptyTest() {
         List<ExchangeRateEntity> data = new ArrayList<>();
-        Mockito.when(repositoryMock.findAll()).thenReturn(data);
+        Mockito.when(repositoryMock.findAll())
+                .thenReturn(data);
 
         List<ExchangeRate> result = service.getAllExchangeRates();
 
-        Assertions.assertThat(result).isNotNull();
-        Assertions.assertThat(result).doesNotContain(new ExchangeRate[]{null});
-        Assertions.assertThat(result).isEmpty();
+        Assertions.assertThat(result)
+                .isNotNull()
+                .isEmpty();
 
-        Mockito.verify(repositoryMock).findAll();
+        Mockito.verify(repositoryMock)
+                .findAll();
+    }
+
+    @Test
+    public void getExchangeRateTest() {
+        ExchangeRateEntity data = new ExchangeRateEntity(1L, Currency.UAH.toString(),
+                BigDecimal.valueOf(random.nextInt(100)).setScale(2, BigDecimal.ROUND_DOWN), Currency.USD.toString());
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+
+        Optional<ExchangeRate> result = service.getExchangeRate(Currency.UAH, Currency.USD);
+
+        Assertions.assertThat(result)
+                .isNotNull()
+                .isPresent()
+                .get().isEqualTo(new ExchangeRate(data));
+
+        Mockito.verify(repositoryMock)
+                .findByFromAndTo(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void getExchangeRateNotFoundTest() {
+        Mockito.when(repositoryMock.findByFromAndTo(Mockito.any(), Mockito.any()))
+                .thenReturn(Optional.empty());
+
+        Optional<ExchangeRate> result = service.getExchangeRate(Currency.UAH, Currency.USD);
+
+        Assertions.assertThat(result)
+                .isNotNull()
+                .isNotPresent();
+
+        Mockito.verify(repositoryMock)
+                .findByFromAndTo(Mockito.any(), Mockito.any());
     }
 
     @Test
     public void setNewExchangeRateTest() {
-        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) + 1), Currency.USD);
-        Mockito.when(repositoryMock.findByFromAndTo(Mockito.any(), Mockito.any())).thenReturn(Optional.empty());
+        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH,
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD);
+        Mockito.when(repositoryMock.findByFromAndTo(Mockito.any(), Mockito.any()))
+                .thenReturn(Optional.empty());
 
         service.setExchangeRate(exchangeRate);
 
         ArgumentCaptor<ExchangeRateEntity> entityCaptor = ArgumentCaptor.forClass(ExchangeRateEntity.class);
-        Mockito.verify(repositoryMock).save(entityCaptor.capture());
-        Mockito.verify(repositoryMock).saveAndFlush(entityCaptor.capture());
+        Mockito.verify(repositoryMock)
+                .save(entityCaptor.capture());
+        Mockito.verify(repositoryMock)
+                .saveAndFlush(entityCaptor.capture());
 
-        Assertions.assertThat(entityCaptor.getAllValues()).hasSize(2);
+        Assertions.assertThat(entityCaptor.getAllValues())
+                .hasSize(2);
 
         ExchangeRateEntity capturedArgument = entityCaptor.getAllValues().get(0);
         checkExchangeRate(capturedArgument);
-        Assertions.assertThat(capturedArgument.getId()).isNull();
-        Assertions.assertThat(capturedArgument.getFrom()).isEqualTo(exchangeRate.getFrom().toString());
-        Assertions.assertThat(capturedArgument.getTo()).isEqualTo(exchangeRate.getTo().toString());
-        Assertions.assertThat(capturedArgument.getRate()).isEqualByComparingTo(exchangeRate.getRate());
+        Assertions.assertThat(capturedArgument.getId())
+                .isNull();
+        Assertions.assertThat(capturedArgument.getFrom())
+                .isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getTo())
+                .isEqualTo(exchangeRate.getTo().toString());
+        Assertions.assertThat(capturedArgument.getRate())
+                .isEqualByComparingTo(exchangeRate.getRate());
 
         capturedArgument = entityCaptor.getAllValues().get(1);
+        BigDecimal expected = BigDecimal.ONE
+                .divide(exchangeRate.getRate(), 5, BigDecimal.ROUND_DOWN);
         checkExchangeRate(capturedArgument);
-        Assertions.assertThat(capturedArgument.getId()).isNull();
-        Assertions.assertThat(capturedArgument.getFrom()).isEqualTo(exchangeRate.getTo().toString());
-        Assertions.assertThat(capturedArgument.getTo()).isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getId())
+                .isNull();
+        Assertions.assertThat(capturedArgument.getFrom())
+                .isEqualTo(exchangeRate.getTo().toString());
+        Assertions.assertThat(capturedArgument.getTo())
+                .isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getRate())
+                .isEqualByComparingTo(expected);
 
-        BigDecimal expected = BigDecimal.ONE.divide(exchangeRate.getRate(), 5, BigDecimal.ROUND_DOWN);
-        Assertions.assertThat(capturedArgument.getRate()).isEqualByComparingTo(expected);
-
-        Mockito.verify(repositoryMock, Mockito.times(2)).findByFromAndTo(Mockito.any(), Mockito.any());
+        Mockito.verify(repositoryMock, Mockito.times(2))
+                .findByFromAndTo(Mockito.any(), Mockito.any());
     }
 
     @Test
     public void updateExchangeRateTest() {
-        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) + 1), Currency.USD);
+        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH,
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.USD);
         ExchangeRateEntity data = new ExchangeRateEntity(exchangeRate);
-        data.setId(1L);
-        ExchangeRateEntity reverseData = new ExchangeRateEntity(2L, Currency.USD.toString(), BigDecimal.valueOf(random.nextInt(100) + 1),
-                Currency.UAH.toString());
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString())).thenReturn(Optional.of(data));
-        Mockito.when(repositoryMock.findByFromAndTo(Currency.USD.toString(), Currency.UAH.toString())).thenReturn(Optional.of(reverseData));
+        long firstId = 1L;
+        data.setId(firstId);
+        long secondId = 2L;
+        ExchangeRateEntity reverseData = new ExchangeRateEntity(secondId, Currency.USD.toString(),
+                BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5, BigDecimal.ROUND_DOWN), Currency.UAH.toString());
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.UAH.toString(), Currency.USD.toString()))
+                .thenReturn(Optional.of(data));
+        Mockito.when(repositoryMock.findByFromAndTo(Currency.USD.toString(), Currency.UAH.toString()))
+                .thenReturn(Optional.of(reverseData));
 
         service.setExchangeRate(exchangeRate);
 
         ArgumentCaptor<ExchangeRateEntity> entityCaptor = ArgumentCaptor.forClass(ExchangeRateEntity.class);
-        Mockito.verify(repositoryMock).save(entityCaptor.capture());
-        Mockito.verify(repositoryMock).saveAndFlush(entityCaptor.capture());
+        Mockito.verify(repositoryMock)
+                .save(entityCaptor.capture());
+        Mockito.verify(repositoryMock)
+                .saveAndFlush(entityCaptor.capture());
 
-        Assertions.assertThat(entityCaptor.getAllValues()).hasSize(2);
+        Assertions.assertThat(entityCaptor.getAllValues())
+                .hasSize(2);
 
         ExchangeRateEntity capturedArgument = entityCaptor.getAllValues().get(0);
         checkExchangeRate(capturedArgument);
-        Assertions.assertThat(capturedArgument.getId()).isEqualTo(1L);
-        Assertions.assertThat(capturedArgument.getFrom()).isEqualTo(exchangeRate.getFrom().toString());
-        Assertions.assertThat(capturedArgument.getTo()).isEqualTo(exchangeRate.getTo().toString());
-        Assertions.assertThat(capturedArgument.getRate()).isEqualByComparingTo(exchangeRate.getRate());
+        Assertions.assertThat(capturedArgument.getId())
+                .isEqualTo(firstId);
+        Assertions.assertThat(capturedArgument.getFrom())
+                .isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getTo())
+                .isEqualTo(exchangeRate.getTo().toString());
+        Assertions.assertThat(capturedArgument.getRate())
+                .isEqualByComparingTo(exchangeRate.getRate());
 
         capturedArgument = entityCaptor.getAllValues().get(1);
+        BigDecimal expected = BigDecimal.ONE
+                .divide(exchangeRate.getRate(), 5, BigDecimal.ROUND_DOWN);
         checkExchangeRate(capturedArgument);
-        Assertions.assertThat(capturedArgument.getId()).isEqualTo(2L);
-        Assertions.assertThat(capturedArgument.getFrom()).isEqualTo(exchangeRate.getTo().toString());
-        Assertions.assertThat(capturedArgument.getTo()).isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getId())
+                .isEqualTo(secondId);
+        Assertions.assertThat(capturedArgument.getFrom())
+                .isEqualTo(exchangeRate.getTo().toString());
+        Assertions.assertThat(capturedArgument.getTo())
+                .isEqualTo(exchangeRate.getFrom().toString());
+        Assertions.assertThat(capturedArgument.getRate())
+                .isEqualByComparingTo(expected);
 
-        BigDecimal expected = BigDecimal.ONE.divide(exchangeRate.getRate(), 5, BigDecimal.ROUND_DOWN);
-        Assertions.assertThat(capturedArgument.getRate()).isEqualByComparingTo(expected);
-
-        Mockito.verify(repositoryMock, Mockito.times(2)).findByFromAndTo(Mockito.any(), Mockito.any());
+        Mockito.verify(repositoryMock, Mockito.times(2))
+                .findByFromAndTo(Mockito.any(), Mockito.any());
     }
 
     @Test
     public void setExchangeRateZeroTest() {
         ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.ZERO, Currency.USD);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.setExchangeRate(exchangeRate));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.setExchangeRate(exchangeRate));
     }
 
     @Test
     public void setExchangeRateNegativeTest() {
-        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) - 100), Currency.USD);
+        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) - 100).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.USD);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.setExchangeRate(exchangeRate));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.setExchangeRate(exchangeRate));
     }
 
     @Test
     public void setExchangeRateSameCurrenciesTest() {
-        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) + 1), Currency.UAH);
+        ExchangeRate exchangeRate = new ExchangeRate(Currency.UAH, BigDecimal.valueOf(random.nextInt(100) + 1).setScale(5,
+                BigDecimal.ROUND_DOWN), Currency.UAH);
 
-        Assertions.assertThatExceptionOfType(ExchangeException.class).isThrownBy(() -> service.setExchangeRate(exchangeRate));
+        Assertions.assertThatExceptionOfType(ExchangeException.class)
+                .isThrownBy(() -> service.setExchangeRate(exchangeRate));
     }
 
     private void checkExchangeRate(ExchangeRateEntity capturedArgument) {
-        Assertions.assertThat(capturedArgument.getRate()).isNotNull();
-        Assertions.assertThat(capturedArgument.getRate()).isGreaterThan(BigDecimal.ZERO);
-        Assertions.assertThat(capturedArgument.getFrom()).isNotNull();
-        Assertions.assertThat(capturedArgument.getTo()).isNotNull();
-        Assertions.assertThat(capturedArgument.getFrom()).isNotEqualTo(capturedArgument.getTo());
+        Assertions.assertThat(capturedArgument.getRate())
+                .isNotNull()
+                .isGreaterThan(BigDecimal.ZERO);
+        Assertions.assertThat(capturedArgument.getFrom())
+                .isNotNull()
+                .isNotEqualTo(capturedArgument.getTo());
+        Assertions.assertThat(capturedArgument.getTo())
+                .isNotNull();
     }
 }

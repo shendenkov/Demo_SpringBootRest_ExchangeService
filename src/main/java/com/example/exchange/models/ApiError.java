@@ -1,11 +1,13 @@
 package com.example.exchange.models;
 
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Data
+@Getter
 @NoArgsConstructor
-public class Error {
+@AllArgsConstructor
+public class ApiError {
 
     private String description;
 }

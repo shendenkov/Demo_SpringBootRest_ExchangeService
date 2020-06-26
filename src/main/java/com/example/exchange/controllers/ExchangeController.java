@@ -1,6 +1,7 @@
 package com.example.exchange.controllers;
 
 import com.example.exchange.config.SwaggerConfig;
+import com.example.exchange.models.ApiError;
 import com.example.exchange.models.Commission;
 import com.example.exchange.models.ExchangeRate;
 import com.example.exchange.models.ExchangeRequest;
@@ -50,7 +51,7 @@ public class ExchangeController {
     @ApiOperation(value = "Установить значение комиссии для валютной пары", tags = {SwaggerConfig.TAG_COMMISSIONS})
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Created", response = Commission.class),
-            @ApiResponse(code = 400, message = "Error", response = com.example.exchange.models.Error.class),
+            @ApiResponse(code = 400, message = "Error", response = ApiError.class),
             @ApiResponse(code = 401, message = "Unauthorized")
     })
     @PostMapping(value = "commissions", consumes = "application/json", produces = "application/json")
@@ -58,14 +59,14 @@ public class ExchangeController {
     public ResponseEntity<Commission> setCommission(@RequestBody Commission commission) throws Exception {
         log.info("Received POST commissions");
         commissionService.setCommission(commission);
-        log.info("New commission " + commission.getCommissionPt() + " was set for exchange from " + commission.getFrom() + " to " + commission.getTo());
+        log.info("New commission " + commission.getCommissionPt() + "% was set for exchange from " + commission.getFrom() + " to " + commission.getTo());
         return new ResponseEntity<>(commission, HttpStatus.CREATED);
     }
 
     @ApiOperation(value = "Запрос обмена валют", tags = {SwaggerConfig.TAG_EXCHANGE}, produces = "*/*")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "OK", response = ExchangeRequest.class),
-            @ApiResponse(code = 400, message = "Error", response = com.example.exchange.models.Error.class),
+            @ApiResponse(code = 400, message = "Error", response = ApiError.class),
             @ApiResponse(code = 401, message = "Unauthorized")
     })
     @PostMapping(value = "exchange", consumes = "application/json")
@@ -89,18 +90,18 @@ public class ExchangeController {
         return new ResponseEntity<>(results, HttpStatus.OK);
     }
 
-    @ApiOperation(value = "Установить курс обмена валют по валютной паре. Курс обртаной пары жолжен быть установлен автоматически.",
+    @ApiOperation(value = "Установить курс обмена валют по валютной паре. Курс обратной пары должен быть установлен автоматически.",
             tags = {SwaggerConfig.TAG_EXCHANGE_RATES})
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "OK", response = ExchangeRate.class),
-            @ApiResponse(code = 400, message = "Error", response = com.example.exchange.models.Error.class),
+            @ApiResponse(code = 400, message = "Error", response = ApiError.class),
             @ApiResponse(code = 401, message = "Unauthorized")
     })
     @PostMapping(value = "exchange-rates", consumes = "application/json", produces = "application/json")
-    public ResponseEntity<Object> setExchangeRate(@RequestBody ExchangeRate exchangeRate) {
+    public ResponseEntity<ExchangeRate> setExchangeRate(@RequestBody ExchangeRate exchangeRate) {
         log.info("Received POST exchange-rates");
         exchangeService.setExchangeRate(exchangeRate);
         log.info("New rate " + exchangeRate.getRate() + " was set for exchange from " + exchangeRate.getFrom() + " to " + exchangeRate.getTo());
-        return new ResponseEntity<>(HttpStatus.OK);
+        return new ResponseEntity<>(exchangeRate, HttpStatus.OK);
     }
 }

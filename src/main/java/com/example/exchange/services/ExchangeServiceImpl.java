@@ -1,6 +1,7 @@
 package com.example.exchange.services;
 
 import com.example.exchange.models.entities.ExchangeRateEntity;
+import com.example.exchange.models.enums.Currency;
 import com.example.exchange.models.enums.OperationType;
 import com.example.exchange.exceptions.ExchangeException;
 import com.example.exchange.models.ExchangeRate;
@@ -33,8 +34,7 @@ public class ExchangeServiceImpl implements ExchangeService {
             throw new ExchangeException("Currencies From and To should be different");
         }
 
-        Optional<ExchangeRateEntity> optionalRate = exchangeRateRepository.findByFromAndTo(exchangeRequest.getCurrencyFrom().toString(),
-                exchangeRequest.getCurrencyTo().toString());
+        Optional<ExchangeRate> optionalRate = getExchangeRate(exchangeRequest.getCurrencyFrom(), exchangeRequest.getCurrencyTo());
         if (!optionalRate.isPresent()) {
             throw new ExchangeException("This service doesn't support exchange between " + exchangeRequest.getCurrencyFrom() + " and " + exchangeRequest.getCurrencyTo());
         }
@@ -50,9 +50,9 @@ public class ExchangeServiceImpl implements ExchangeService {
             }
             exchangeRequest.setAmountTo(
                     exchangeRequest.getAmountFrom()
-                    .multiply(optionalRate.get().getRate())
-                    .multiply(commissionCoefficient)
-                    .setScale(2, BigDecimal.ROUND_DOWN)
+                            .multiply(optionalRate.get().getRate())
+                            .multiply(commissionCoefficient)
+                            .setScale(2, BigDecimal.ROUND_DOWN)
             );
 
         } else if (exchangeRequest.getOperationType() == OperationType.GET) {
@@ -66,7 +66,7 @@ public class ExchangeServiceImpl implements ExchangeService {
                     .setScale(2, BigDecimal.ROUND_DOWN);
             exchangeRequest.setAmountFrom(
                     exchangeRequest.getAmountTo()
-                    .divide(divisor, BigDecimal.ROUND_DOWN)
+                            .divide(divisor, BigDecimal.ROUND_DOWN)
             );
 
         } else {
@@ -80,6 +80,12 @@ public class ExchangeServiceImpl implements ExchangeService {
         return exchangeRateRepository.findAll().stream()
                 .map(ExchangeRate::new)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<ExchangeRate> getExchangeRate(Currency from, Currency to) {
+        Optional<ExchangeRateEntity> optional = exchangeRateRepository.findByFromAndTo(from.toString(), to.toString());
+        return optional.map(ExchangeRate::new);
     }
 
     @Override

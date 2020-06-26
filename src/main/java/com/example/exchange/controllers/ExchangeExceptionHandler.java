@@ -2,6 +2,7 @@ package com.example.exchange.controllers;
 
 import com.example.exchange.exceptions.CommissionException;
 import com.example.exchange.exceptions.ExchangeException;
+import com.example.exchange.models.ApiError;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -24,14 +25,16 @@ public class ExchangeExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatus status, WebRequest request) {
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
+                                                                  HttpHeaders headers,
+                                                                  HttpStatus status,
+                                                                  WebRequest request) {
         return wrapError(ex);
     }
 
     private ResponseEntity<Object> wrapError(Exception ex) {
         log.error("Catch error: " + ex.getMessage(), ex);
-        com.example.exchange.models.Error apiError = new com.example.exchange.models.Error();
-        apiError.setDescription(ex.getMessage());
+        ApiError apiError = new ApiError(ex.getMessage());
         return new ResponseEntity<>(apiError, HttpStatus.BAD_REQUEST);
     }
 }

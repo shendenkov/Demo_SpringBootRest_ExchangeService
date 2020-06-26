@@ -57,7 +57,7 @@ public class SwaggerConfig {
                 .title("Exchange service")
                 .description("Сервис обмена валют. Позволяет задавать курсы валют и комиссию за обмен по каждой валютной паре. " +
                         "На основании этих данных сервис позволяет получать суммы для прямого и обратного обмена валют.")
-                .contact(new Contact(null, null, "s.vasnev@advcash.com"))
+                .contact(new Contact(null, null, "shendenkov@gmail.com"))
                 .version("1.0")
                 .build();
     }

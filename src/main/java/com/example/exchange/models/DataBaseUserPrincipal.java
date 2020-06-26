@@ -1,6 +1,7 @@
 package com.example.exchange.models;
 
 import com.example.exchange.models.entities.UserEntity;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,13 +13,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Getter
+@AllArgsConstructor
 public class DataBaseUserPrincipal implements UserDetails {
 
-    private UserEntity user;
-
-    public DataBaseUserPrincipal(UserEntity user) {
-        this.user = user;
-    }
+    private final UserEntity user;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
